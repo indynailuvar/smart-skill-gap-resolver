@@ -1,29 +1,42 @@
-import pickle
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
+import joblib
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-# Load TF-IDF matrix & dataframe
-with open('../data/tfidf_matrix.pkl', 'rb') as f:
-    tfidf_matrix = pickle.load(f)
+from config import (
+    TFIDF_VECTORIZER_PATH,
+    TFIDF_MATRIX_PATH,
+    COURSE_DF_PATH,
+    ensure_directories,
+    get_raw_data_path
+)
+from preprocessing import prepare_dataset
 
-with open('../data/coursera_df.pkl', 'rb') as f:
-    df = pickle.load(f)
 
-# Fungsi rekomendasi
-def recommend_courses(input_skills, top_n=5):
-    input_text = input_skills.lower()
-    input_vec = tfidf.transform([input_text])
+def train_model():
+    ensure_directories()
 
-    sim_scores = cosine_similarity(input_vec, tfidf_matrix).flatten()
+    raw_data_path = get_raw_data_path()
+    df = prepare_dataset(raw_data_path, save_output=True)
 
-    # Ranking dengan rating
-    if 'rating' in df.columns:
-        ratings = df['rating'].fillna(df['rating'].mean())
-        final_scores = 0.7*sim_scores + 0.3*(ratings/ratings.max())
-    else:
-        final_scores = sim_scores
+    vectorizer = TfidfVectorizer(
+        stop_words="english",
+        max_features=8000,
+        ngram_range=(1, 2),
+        min_df=1
+    )
 
-    top_indices = np.argsort(final_scores)[::-1][:top_n]
-    recommendations = df.iloc[top_indices][['course_name','skills','difficulty','rating','organization','certificate_type']]
-    recommendations['similarity_score'] = final_scores[top_indices]
-    return recommendations
+    tfidf_matrix = vectorizer.fit_transform(df["combined_features"])
+
+    joblib.dump(vectorizer, TFIDF_VECTORIZER_PATH)
+    joblib.dump(tfidf_matrix, TFIDF_MATRIX_PATH)
+    joblib.dump(df, COURSE_DF_PATH)
+
+    print("Training model selesai.")
+    print(f"Total kursus: {len(df)}")
+    print(f"Jumlah fitur TF-IDF: {len(vectorizer.get_feature_names_out())}")
+    print(f"Vectorizer disimpan ke: {TFIDF_VECTORIZER_PATH}")
+    print(f"Matrix disimpan ke: {TFIDF_MATRIX_PATH}")
+    print(f"DataFrame disimpan ke: {COURSE_DF_PATH}")
+
+
+if __name__ == "__main__":
+    train_model()
